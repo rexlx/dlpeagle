@@ -21,6 +21,13 @@ import (
 )
 
 func main() {
+	api := API{
+		URL:      "http://localhost:8081/tag",
+		Username: "admin",
+		Password: "password",
+	}
+	instance := NewInstance(api, "instance.log")
+	instance.Logger.Println("Starting application...")
 	a := app.New()
 	w := a.NewWindow("Document Metadata Tool")
 
@@ -57,7 +64,7 @@ func main() {
 			return
 		}
 
-		documentType := inferDocumentType(filePath)
+		documentType := instance.inferDocumentType(filePath)
 		metadata := generateMetadata(filePath, documentType)
 
 		// Display results (replace with your metadata handling logic)
@@ -68,7 +75,7 @@ func main() {
 	w.ShowAndRun()
 }
 
-func inferDocumentType(filePath string) string {
+func (i *Instance) inferDocumentType(filePath string) string {
 	ext := strings.ToLower(filepath.Ext(filePath))
 
 	switch ext {
@@ -77,6 +84,7 @@ func inferDocumentType(filePath string) string {
 	case ".txt":
 		return "Text"
 	case ".docx", ".doc":
+		i.TagWordDocument(filePath)
 		return "Word Document"
 	case ".jpg", ".jpeg", ".png", ".gif":
 		return "Image"
