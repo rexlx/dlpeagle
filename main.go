@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -22,7 +21,7 @@ import (
 
 func main() {
 	api := API{
-		URL:      "http://localhost:8081/tag",
+		URL:      "http://localhost:8081",
 		Username: "admin",
 		Password: "password",
 	}
@@ -124,9 +123,22 @@ func (i *Instance) TagWordDocument(filePath string) {
 		fmt.Println("File does not exist.")
 		return
 	}
-	newLine := `<w:instrText xml:space="preserve"> INCLUDEPICTURE \d "%v" \* MERGEFORMATINET </w:instrText>`
+	id := uuid.New().String()
+	url := fmt.Sprintf("%v/%v", i.API.URL, id)
+	// var t Tag
+	// t.FilePath = filePath
+	// t.ID = uuid.New().String()
+	// t.Created = int(time.Now().Unix())
+	// newLine := `test %v`
+	// newLine := `<w:instrText xml:space="preserve"> INCLUDEPICTURE \d "%v" \* MERGEFORMATINET </w:instrText>`
 	//add newline to word document
-	err := addLineToWordDocument(filePath, newLine)
+	t, err := addRemoteImageTrackerToWordDocument(filePath, url, id)
+	if err != nil {
+		fmt.Println("Error adding line to word document:", err)
+		return
+	}
+	err = i.SendTag(t)
+	// err := addLineToWordDocument(filePath, newLine)
 	if err != nil {
 		fmt.Println("Error adding line to word document:", err)
 		return
@@ -136,17 +148,13 @@ func (i *Instance) TagWordDocument(filePath string) {
 		fmt.Println("Error calculating hash:", err)
 		return
 	}
-	var t Tag
-	t.FilePath = filePath
-	t.ID = uuid.New().String()
-	t.Created = int(time.Now().Unix())
 	t.Hash = hash
 	out, err := json.Marshal(t)
 	if err != nil {
 		fmt.Println("Error marshalling tag:", err)
 		return
 	}
-	request, err := http.NewRequest("POST", i.API.URL, bytes.NewBuffer(out))
+	request, err := http.NewRequest("POST", fmt.Sprintf("%v/tag", i.API.URL), bytes.NewBuffer(out))
 	if err != nil {
 		fmt.Println("Error creating request:", err)
 		return

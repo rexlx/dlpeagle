@@ -32,3 +32,7 @@ func NewInstance(api API, logname string) *Instance {
 		Gateway: http.DefaultClient,
 	}
 }
+
+func (i *Instance) SendTag(tag Tag) error {
+	return nil
+}
