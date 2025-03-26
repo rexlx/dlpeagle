@@ -9,8 +9,10 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"os/user"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -236,6 +238,18 @@ func addRemoteImageTrackerToWordDocument(filePath, trackerURL string, id string)
 		return Tag{}, err
 	}
 	return t, nil
+}
+
+func GetUsername() (string, error) {
+	if runtime.GOOS == "windows" {
+		return os.Getenv("USERNAME"), nil // Windows
+	}
+
+	currentUser, err := user.Current()
+	if err != nil {
+		return "", err
+	}
+	return currentUser.Username, nil // Unix-like systems
 }
 
 func generateMetadata(filePath string, documentType string) map[string]string {

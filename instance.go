@@ -85,6 +85,12 @@ func (i *Instance) TagWordDocument(filePath string) {
 		return
 	}
 	t.Hash = hash
+	uname, err := GetUsername()
+	if err != nil {
+		i.Logger.Println("Error getting username:", err)
+	}
+	t.Username = uname
+	t.FilePath = filePath
 	out, err := json.Marshal(t)
 	if err != nil {
 		i.Logger.Println("Error marshalling tag:", err)
