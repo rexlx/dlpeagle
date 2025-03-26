@@ -23,7 +23,7 @@ func main() {
 	instance := NewInstance(api, "instance.log")
 	instance.Logger.Println("Starting application...")
 	a := app.New()
-	w := a.NewWindow("Document Metadata Tool")
+	w := a.NewWindow("DLPeagle")
 
 	toolbar := widget.NewToolbar(
 		widget.NewToolbarAction(theme.DocumentIcon(), func() {
