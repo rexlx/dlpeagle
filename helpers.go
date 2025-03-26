@@ -3,11 +3,12 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
-	"net/url"
+	"log"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"github.com/beevik/etree"
+	"github.com/quic-go/quic-go"
 )
 
 func FileExists(fileHandle string) bool {
@@ -292,27 +294,19 @@ func extractUUIDFromText(text string) (string, bool) {
 	return "", false // UUID not found
 }
 
-func extractUUIDFromText2(text string) (string, bool) {
-	// Regular expression to find URLs (including localhost)
-	urlRegex := regexp.MustCompile(`(http|https):\/\/[^\s]+`)
+func dialQUIC(url string, sm *SecretManager) (quic.Connection, quic.Stream, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second) // 3s handshake timeout
+	defer cancel()
 
-	// Regular expression for UUID (version 4)
-	uuidRegex := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
-
-	// Find all URLs in the text
-	urlMatches := urlRegex.FindAllString(text, -1)
-
-	for _, urlString := range urlMatches {
-		parsedURL, err := url.Parse(urlString)
-		if err != nil {
-			continue // Skip invalid URLs
-		}
-
-		pathSegments := strings.TrimPrefix(parsedURL.Path, "/") // Remove leading slash
-		if uuidRegex.MatchString(pathSegments) {
-			return pathSegments, true
-		}
+	conn, err := quic.DialAddr(ctx, url, sm.TC, sm.QC)
+	if err != nil {
+		log.Println(err)
+		return nil, nil, err
 	}
-
-	return "", false // UUID not found
+	stream, err := conn.OpenStreamSync(ctx)
+	if err != nil {
+		log.Println(err)
+		return nil, nil, err
+	}
+	return conn, stream, nil
 }

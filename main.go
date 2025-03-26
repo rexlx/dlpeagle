@@ -20,7 +20,7 @@ func main() {
 		Username: "admin",
 		Password: "password",
 	}
-	instance := NewInstance(api, "instance.log")
+	instance := NewInstance(api, "instance.log", "localhost:4242", nil)
 	instance.Logger.Println("Starting application...")
 	a := app.New()
 	w := a.NewWindow("DLPeagle")

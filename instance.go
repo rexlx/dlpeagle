@@ -2,22 +2,43 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
+	"fyne.io/fyne/widget"
 	"github.com/google/uuid"
+	"github.com/quic-go/quic-go"
 )
 
 type Instance struct {
-	API     API          `json:"api"`
-	Logger  *log.Logger  `json:"-"`
-	Gateway *http.Client `json:"-"`
+	Memory        *sync.RWMutex   `json:"-"`
+	Notifications []Notification  `json:"notifications"`
+	SM            *SecretManager  `json:"-"`
+	Notifier      SoundBlock      `json:"notifier"`
+	API           API             `json:"api"`
+	Logger        *log.Logger     `json:"-"`
+	Gateway       *http.Client    `json:"-"`
+	QUICConn      quic.Connection `json:"-"`            // QUIC Connection.
+	QUICStream    quic.Stream     `json:"-"`            // QUIC Stream.
+	QUICAddress   string          `json:"quic_address"` // Address of the QUIC server.
+	MessageLabel  *widget.Label   `json:"-"`            // Label to display messages.
+}
+
+type SecretManager struct {
+	QC          *quic.Config
+	TC          *tls.Config
+	Destination net.Addr
 }
 
 type API struct {
@@ -26,7 +47,7 @@ type API struct {
 	Password string `json:"password"`
 }
 
-func NewInstance(api API, logname string) *Instance {
+func NewInstance(api API, logname string, quicAddress string, messageLabel *widget.Label) *Instance {
 	f, err := os.OpenFile(logname, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Fatal(err)
@@ -34,10 +55,14 @@ func NewInstance(api API, logname string) *Instance {
 	defer f.Close()
 	logger := log.New(f, "instance: ", log.LstdFlags)
 	logger.Println("Creating new instance...")
+	sb := SoundBlockIn880Hz(time.Second)
 	return &Instance{
-		Logger:  logger,
-		API:     api,
-		Gateway: http.DefaultClient,
+		Notifier:     *sb,
+		API:          api,
+		Logger:       logger,
+		Gateway:      &http.Client{},
+		QUICAddress:  quicAddress,
+		MessageLabel: messageLabel,
 	}
 }
 
@@ -108,11 +133,67 @@ func (i *Instance) TagWordDocument(filePath string) {
 		return
 	}
 	defer res.Body.Close()
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		i.Logger.Println("Error reading response body:", err)
+	status := res.StatusCode
+	if status != http.StatusOK {
+		i.Logger.Println("Error sending tag:", status)
 		return
 	}
-	i.Logger.Println(string(body))
-	// send this to an api eventually
+	i.Logger.Println("Tag sent successfully.")
+
+}
+
+func (i *Instance) SendAndReceiveOverQUIC(ctx context.Context, url string, sm *SecretManager, qr *Notification) {
+	out, err := json.Marshal(qr)
+	if err != nil {
+		i.Logger.Println("Error marshalling notification:", err)
+		return
+	}
+
+	conn, stream, err := dialQUIC(url, sm)
+	if err != nil {
+		i.Logger.Printf("Failed to dial QUIC: %v", err)
+		return
+	}
+	i.QUICConn = conn
+	i.QUICStream = stream
+	defer func() {
+		if err := i.QUICConn.CloseWithError(0, "terminating"); err != nil {
+			i.Logger.Printf("Error closing QUIC connection: %v", err)
+		}
+		// Stream will be closed automatically by connection closure
+		// If you need explicit stream closure first, do it before CloseWithError
+	}()
+	_, err = stream.Write(out) // this request registers the client
+	if err != nil {
+		i.Logger.Println("Error writing to QUIC stream:", err)
+		return
+	}
+
+	buf := make([]byte, 1024)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			n, err := stream.Read(buf)
+			if err != nil {
+				if err == io.EOF {
+					i.Logger.Println("QUIC stream closed by remote")
+					return
+				}
+				i.Logger.Printf("Error reading from QUIC stream: %v", err)
+				return
+			}
+
+			var not Notification
+			if err := json.Unmarshal(buf[:n], &not); err != nil {
+				i.Logger.Println("Error unmarshalling notification:", err)
+				return
+			}
+
+			i.Memory.Lock()
+			i.Notifications = append(i.Notifications, not)
+			i.Memory.Unlock()
+		}
+	}
 }
