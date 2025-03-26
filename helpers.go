@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -235,6 +236,32 @@ func addRemoteImageTrackerToWordDocument(filePath, trackerURL string, id string)
 		return Tag{}, err
 	}
 	return t, nil
+}
+
+func generateMetadata(filePath string, documentType string) map[string]string {
+	metadata := make(map[string]string)
+
+	// Add basic metadata. Enhance this with actual metadata extraction.
+	metadata["filename"] = filepath.Base(filePath)
+	metadata["type"] = documentType
+
+	fileInfo, err := os.Stat(filePath)
+	if err == nil {
+		metadata["size"] = fmt.Sprintf("%d bytes", fileInfo.Size())
+	}
+
+	//Add further meta data as needed.
+	return metadata
+}
+
+type Tag struct {
+	Username string `json:"username"`
+	FilePath string `json:"file_path"`
+	ID       string `json:"id"`
+	ClientID string `json:"client_id"`
+	Hash     string `json:"hash"`
+	URL      string `json:"url"`
+	Created  int    `json:"created"`
 }
 
 func extractUUIDFromText(text string) (string, bool) {

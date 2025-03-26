@@ -1,22 +1,17 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
-	"path/filepath"
-	"strings"
 
+	// "fyne.io/fyne/canvas"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"github.com/google/uuid"
 )
 
 func main() {
@@ -39,10 +34,21 @@ func main() {
 			fmt.Println("Settings clicked")
 		}),
 	)
-
+	resource, err := fyne.LoadResourceFromPath("data/bg.jpg")
+	if err != nil {
+		dialog.ShowError(err, w)
+		return
+	}
+	bgImage := canvas.NewImageFromResource(resource)
+	bgImage.FillMode = canvas.ImageFillStretch
 	content := widget.NewLabel("Drag and drop a document here.")
+	// stackedContent := container.NewStack(bgImage, container.NewCenter(content))
+	stackedContent := container.NewStack(
+		bgImage,
+		container.NewCenter(content), // Center the label
+	)
 
-	w.SetContent(container.NewBorder(toolbar, nil, nil, nil, content))
+	w.SetContent(container.NewBorder(toolbar, nil, nil, nil, stackedContent))
 
 	w.Resize(fyne.NewSize(600, 400))
 
@@ -72,105 +78,4 @@ func main() {
 	})
 
 	w.ShowAndRun()
-}
-
-func (i *Instance) inferDocumentType(filePath string) string {
-	ext := strings.ToLower(filepath.Ext(filePath))
-
-	switch ext {
-	case ".pdf":
-		return "PDF"
-	case ".txt":
-		return "Text"
-	case ".docx", ".doc":
-		i.TagWordDocument(filePath)
-		return "Word Document"
-	case ".jpg", ".jpeg", ".png", ".gif":
-		return "Image"
-	default:
-		return "Unknown"
-	}
-}
-
-func generateMetadata(filePath string, documentType string) map[string]string {
-	metadata := make(map[string]string)
-
-	// Add basic metadata. Enhance this with actual metadata extraction.
-	metadata["filename"] = filepath.Base(filePath)
-	metadata["type"] = documentType
-
-	fileInfo, err := os.Stat(filePath)
-	if err == nil {
-		metadata["size"] = fmt.Sprintf("%d bytes", fileInfo.Size())
-	}
-
-	//Add further meta data as needed.
-	return metadata
-}
-
-type Tag struct {
-	Username string `json:"username"`
-	FilePath string `json:"file_path"`
-	ID       string `json:"id"`
-	ClientID string `json:"client_id"`
-	Hash     string `json:"hash"`
-	URL      string `json:"url"`
-	Created  int    `json:"created"`
-}
-
-func (i *Instance) TagWordDocument(filePath string) {
-	if !FileExists(filePath) {
-		fmt.Println("File does not exist.")
-		return
-	}
-	id := uuid.New().String()
-	url := fmt.Sprintf("%v/%v", i.API.URL, id)
-	// var t Tag
-	// t.FilePath = filePath
-	// t.ID = uuid.New().String()
-	// t.Created = int(time.Now().Unix())
-	// newLine := `test %v`
-	// newLine := `<w:instrText xml:space="preserve"> INCLUDEPICTURE \d "%v" \* MERGEFORMATINET </w:instrText>`
-	//add newline to word document
-	t, err := addRemoteImageTrackerToWordDocument(filePath, url, id)
-	if err != nil {
-		fmt.Println("Error adding line to word document:", err)
-		return
-	}
-	err = i.SendTag(t)
-	// err := addLineToWordDocument(filePath, newLine)
-	if err != nil {
-		fmt.Println("Error adding line to word document:", err)
-		return
-	}
-	hash, err := CalculateSHA256(filePath)
-	if err != nil {
-		fmt.Println("Error calculating hash:", err)
-		return
-	}
-	t.Hash = hash
-	out, err := json.Marshal(t)
-	if err != nil {
-		fmt.Println("Error marshalling tag:", err)
-		return
-	}
-	request, err := http.NewRequest("POST", fmt.Sprintf("%v/tag", i.API.URL), bytes.NewBuffer(out))
-	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return
-	}
-	request.SetBasicAuth(i.API.Username, i.API.Password)
-	res, err := i.Gateway.Do(request)
-	if err != nil {
-		fmt.Println("Error sending request:", err)
-		return
-	}
-	defer res.Body.Close()
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		fmt.Println("Error reading response body:", err)
-		return
-	}
-	fmt.Println(string(body))
-	// send this to an api eventually
 }
