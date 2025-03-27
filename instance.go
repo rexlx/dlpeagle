@@ -10,7 +10,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -47,22 +46,18 @@ type API struct {
 	Password string `json:"password"`
 }
 
-func NewInstance(api API, logname string, quicAddress string, messageLabel *widget.Label) *Instance {
-	f, err := os.OpenFile(logname, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer f.Close()
-	logger := log.New(f, "instance: ", log.LstdFlags)
-	logger.Println("Creating new instance...")
+func NewInstance(api API, logname *log.Logger, quicAddress string, messageLabel *widget.Label) *Instance {
 	sb := SoundBlockIn880Hz(time.Second)
 	return &Instance{
-		Notifier:     *sb,
-		API:          api,
-		Logger:       logger,
-		Gateway:      &http.Client{},
-		QUICAddress:  quicAddress,
-		MessageLabel: messageLabel,
+		Memory:        &sync.RWMutex{},
+		Notifications: make([]Notification, 0),
+		SM:            &SecretManager{},
+		Notifier:      *sb,
+		API:           api,
+		Logger:        logname,
+		Gateway:       &http.Client{},
+		QUICAddress:   quicAddress,
+		MessageLabel:  messageLabel,
 	}
 }
 

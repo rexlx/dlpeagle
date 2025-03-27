@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	// "fyne.io/fyne/canvas"
@@ -20,7 +21,13 @@ func main() {
 		Username: "admin",
 		Password: "password",
 	}
-	instance := NewInstance(api, "instance.log", "localhost:4242", nil)
+	f, err := os.OpenFile("instance.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+	logger := log.New(f, "instance: ", log.LstdFlags)
+	instance := NewInstance(api, logger, "localhost:4242", nil)
 	instance.Logger.Println("Starting application...")
 	a := app.New()
 	w := a.NewWindow("DLPeagle")
