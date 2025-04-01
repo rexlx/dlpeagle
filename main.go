@@ -17,7 +17,7 @@ import (
 
 func main() {
 	api := API{
-		URL:      "http://localhost:8081",
+		URL:      "http://fairlady:8081",
 		Username: "admin",
 		Password: "password",
 	}
@@ -27,7 +27,11 @@ func main() {
 	}
 	defer f.Close()
 	logger := log.New(f, "instance: ", log.LstdFlags)
+	storage := HttpStorage{
+		Endpoint: api.URL,
+	}
 	instance := NewInstance(api, logger, "localhost:4242", nil)
+	instance.Storage = &storage
 	instance.Logger.Println("Starting application...")
 	a := app.New()
 	w := a.NewWindow("DLPeagle")

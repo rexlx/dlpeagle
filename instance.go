@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 )
 
 type Instance struct {
+	Storage       Storage         `json:"-"`
 	Memory        *sync.RWMutex   `json:"-"`
 	Notifications []Notification  `json:"notifications"`
 	SM            *SecretManager  `json:"-"`
@@ -70,6 +72,7 @@ func (i *Instance) inferDocumentType(filePath string) string {
 
 	switch ext {
 	case ".pdf":
+		i.HandlePDF(filePath)
 		return "PDF"
 	case ".txt":
 		return "Text"
@@ -129,7 +132,7 @@ func (i *Instance) TagWordDocument(filePath string) {
 	}
 	defer res.Body.Close()
 	status := res.StatusCode
-	if status != http.StatusOK {
+	if status != http.StatusOK || status != http.StatusCreated {
 		i.Logger.Println("Error sending tag:", status)
 		return
 	}
@@ -191,4 +194,19 @@ func (i *Instance) SendAndReceiveOverQUIC(ctx context.Context, url string, sm *S
 			i.Memory.Unlock()
 		}
 	}
+}
+
+func (i *Instance) HandlePDF(filePath string) {
+	fileData, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		i.Logger.Println("Error reading PDF file:", err)
+		return
+	}
+	fileName := filepath.Base(filePath)
+	err = i.Storage.SavePDF(fileData, fileName)
+	if err != nil {
+		i.Logger.Println("Error saving PDF file:", err)
+		return
+	}
+	i.Logger.Println("PDF file saved successfully.")
 }
