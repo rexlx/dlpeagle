@@ -1,4 +1,6 @@
 import pikepdf
+import sys
+import os
 
 def add_url_action(pdf_path, output_path, page_number, x, y, width, height, url):
     with pikepdf.open(pdf_path) as pdf:
@@ -19,11 +21,16 @@ def add_url_action(pdf_path, output_path, page_number, x, y, width, height, url)
 
         pdf.save(output_path)
 
-# Example usage:
-pdf_path = "/Users/rxlx/Documents/resume/rFitzhugh.pdf"
-output_path = "output.pdf"
-page_number = 0  # Page index (0-based)
-x, y, width, height = 100, 700, 200, 50  # Coordinates and size of the clickable area
-url = "http://fairlady:8081/okay"
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: python script.py <input_pdf_path>")
+        sys.exit(1)
 
-add_url_action(pdf_path, output_path, page_number, x, y, width, height, url)
+    pdf_path = sys.argv[1]
+    output_path = os.path.splitext(pdf_path)[0] + "_new.pdf"
+    page_number = 0  # Page index (0-based)
+    x, y, width, height = 100, 700, 200, 50  # Coordinates and size of the clickable area
+    url = "http://fairlady:8081/okay"
+
+    add_url_action(pdf_path, output_path, page_number, x, y, width, height, url)
+    print(f"Modified PDF saved to: {output_path}")
