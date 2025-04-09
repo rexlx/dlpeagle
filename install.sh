@@ -6,8 +6,8 @@ install_python_deps() {
   # Replace with your actual Python dependency installation commands
   python3 -m venv .venv
   source .venv/bin/activate
-  pip install --upgrade pip
-  pip install pikepdf
+  python3 -m pip install --upgrade pip
+  python3 -m pip install pikepdf
 }
 
 # Function to install Node.js dependencies

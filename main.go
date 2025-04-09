@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
+	"image/color"
 	"log"
 	"os"
+	"time"
 
-	// "fyne.io/fyne/canvas"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
@@ -38,7 +39,12 @@ func main() {
 
 	toolbar := widget.NewToolbar(
 		widget.NewToolbarAction(theme.DocumentIcon(), func() {
-			fmt.Println("Document action clicked")
+			fmt.Println("testing server connection")
+			if !instance.IsConnected() {
+				dialog.ShowInformation("Connection", "Not connected to the server.", w)
+				return
+			}
+			dialog.ShowInformation("Connection", "Connected to the server.", w)
 		}),
 		widget.NewToolbarSeparator(),
 		widget.NewToolbarAction(theme.SettingsIcon(), func() {
@@ -53,10 +59,15 @@ func main() {
 	bgImage := canvas.NewImageFromResource(resource)
 	bgImage.FillMode = canvas.ImageFillStretch
 	content := widget.NewLabel("Drag and drop a document here.")
-	// stackedContent := container.NewStack(bgImage, container.NewCenter(content))
+
+	// Create a warning rectangle (initially hidden)
+	warningRect := canvas.NewRectangle(color.RGBA{255, 0, 0, 128}) // Semi-transparent red
+	warningRect.Hide()
+
 	stackedContent := container.NewStack(
 		bgImage,
-		container.NewCenter(content), // Center the label
+		container.NewCenter(content),
+		warningRect, // Add the warning rectangle
 	)
 
 	w.SetContent(container.NewBorder(toolbar, nil, nil, nil, stackedContent))
@@ -66,6 +77,20 @@ func main() {
 	w.SetOnDropped(func(pos fyne.Position, uris []fyne.URI) {
 		if len(uris) == 0 {
 			return
+		}
+		if !instance.IsConnected() {
+			// Display warning
+			warningRect.Show()
+			warningRect.Resize(fyne.NewSize(w.Canvas().Size().Width, 20)) // Adjust size as needed
+			warningRect.Move(fyne.NewPos(0, 0))                           // Position at the top
+
+			// Hide warning after a delay (e.g., 5 seconds)
+			time.AfterFunc(5*time.Second, func() {
+				warningRect.Hide()
+			})
+		} else {
+			// If connected, ensure the warning is hidden
+			warningRect.Hide()
 		}
 
 		filePath := uris[0].Path()
@@ -86,7 +111,18 @@ func main() {
 		// Display results (replace with your metadata handling logic)
 		resultText := fmt.Sprintf("File: %s\nType: %s\nMetadata: %v", filePath, documentType, metadata)
 		content.SetText(resultText)
+
 	})
+
+	// Initial API connection check
+	if !instance.IsConnected() {
+		warningRect.Show()
+		warningRect.Resize(fyne.NewSize(w.Canvas().Size().Width, 20))
+		warningRect.Move(fyne.NewPos(0, 0))
+		time.AfterFunc(5*time.Second, func() {
+			warningRect.Hide()
+		})
+	}
 
 	w.ShowAndRun()
 }

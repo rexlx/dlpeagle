@@ -67,6 +67,20 @@ func (i *Instance) SendTag(tag Tag) error {
 	return nil
 }
 
+func (i *Instance) IsConnected() bool {
+	res, err := i.Gateway.Get(fmt.Sprintf("%v/access", i.API.URL))
+	if err != nil {
+		i.Logger.Println("Error checking connection:", err)
+		return false
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		i.Logger.Println("Not connected to the server.")
+		return false
+	}
+	return true
+}
+
 func (i *Instance) inferDocumentType(filePath string) string {
 	ext := strings.ToLower(filepath.Ext(filePath))
 
