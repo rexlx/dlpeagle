@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -11,9 +12,9 @@ import (
 )
 
 type Storage interface {
-	SavePDF(file []byte, name string) error
-	SaveImage(file []byte, name string) error
-	SaveHTML(file []byte, name string) error
+	SavePDF(file []byte, name string) (string, error)
+	SaveImage(file []byte, name string) (string, error)
+	SaveHTML(file []byte, name string) (string, error)
 	// GetPDF(name string) ([]byte, error)
 	// GetImage(name string) ([]byte, error)
 	// GetHTML(name string) ([]byte, error)
@@ -50,7 +51,12 @@ type LocalStorage struct {
 
 type MinioStorage struct{}
 
-func (h *HttpStorage) saveFile(file []byte, name, fileType string) error {
+type uploadStatus struct {
+	Status string `json:"status"`
+	ID     string `json:"id"`
+}
+
+func (h *HttpStorage) saveFile(file []byte, name, fileType string) (string, error) {
 	chunkSize := 1024 * 1024 // 1 MB
 	url := h.Endpoint + "/upload"
 	var lastChunk bool
@@ -63,7 +69,7 @@ func (h *HttpStorage) saveFile(file []byte, name, fileType string) error {
 		}
 		req, err := http.NewRequest("POST", url, nil)
 		if err != nil {
-			return err
+			return "", err
 		}
 		req.Header.Set("Content-Type", "application/octet-stream")
 		req.Header.Set("Authorization", "AWS "+h.AccessKey+":"+h.SecretKey)
@@ -74,25 +80,42 @@ func (h *HttpStorage) saveFile(file []byte, name, fileType string) error {
 		req.Body = io.NopCloser(bytes.NewReader(file[i:end]))
 		resp, err := client.Do(req)
 		if err != nil {
-			return err
+			return "", err
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("failed to upload chunk: %s", resp.Status)
+			return "", fmt.Errorf("failed to upload chunk: %s", resp.Status)
+		}
+		var status uploadStatus
+		if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				return "", fmt.Errorf("failed to read response body: %w", err)
+			}
+			fmt.Println("failed to decode response", url, err, len(body))
+			return "", fmt.Errorf("failed to decode response: body: %s", resp.Status)
+		}
+		if status.Status == "complete" {
+			modifiedFilenameWithoutExt := name[:len(name)-len(filepath.Ext(name))]
+			modifiedFilename := modifiedFilenameWithoutExt + "_new.pdf"
+			newPdfURL := fmt.Sprintf("%s/static/%s", h.Endpoint, modifiedFilename)
+			fmt.Println("Upload complete", newPdfURL)
+			return newPdfURL, nil
+
 		}
 	}
-	return nil
+	return "", nil
 }
 
-func (h *HttpStorage) SavePDF(file []byte, name string) error {
+func (h *HttpStorage) SavePDF(file []byte, name string) (string, error) {
 	return h.saveFile(file, name, "pdf")
 }
 
-func (h *HttpStorage) SaveImage(file []byte, name string) error {
+func (h *HttpStorage) SaveImage(file []byte, name string) (string, error) {
 	return h.saveFile(file, name, "image")
 }
 
-func (h *HttpStorage) SaveHTML(file []byte, name string) error {
+func (h *HttpStorage) SaveHTML(file []byte, name string) (string, error) {
 	return h.saveFile(file, name, "html")
 }
 

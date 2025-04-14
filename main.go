@@ -31,11 +31,13 @@ func main() {
 	storage := HttpStorage{
 		Endpoint: api.URL,
 	}
-	instance := NewInstance(api, logger, "localhost:4242", nil)
+	messageLabel := widget.NewLabel("")
+	instance := NewInstance(api, logger, "localhost:4242", messageLabel)
 	instance.Storage = &storage
 	instance.Logger.Println("Starting application...")
-	a := app.New()
+	a := app.NewWithID("com.example.dlpeagle")
 	w := a.NewWindow("DLPeagle")
+	instance.Window = w
 
 	toolbar := widget.NewToolbar(
 		widget.NewToolbarAction(theme.DocumentIcon(), func() {
@@ -72,7 +74,8 @@ func main() {
 
 	w.SetContent(container.NewBorder(toolbar, nil, nil, nil, stackedContent))
 
-	w.Resize(fyne.NewSize(600, 400))
+	// w.Resize(fyne.NewSize(600, 400))
+	w.Resize(fyne.NewSize(800, 600))
 
 	w.SetOnDropped(func(pos fyne.Position, uris []fyne.URI) {
 		if len(uris) == 0 {

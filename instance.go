@@ -16,12 +16,15 @@ import (
 	"sync"
 	"time"
 
-	"fyne.io/fyne/widget"
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/widget"
 	"github.com/google/uuid"
 	"github.com/quic-go/quic-go"
 )
 
 type Instance struct {
+	Window        fyne.Window     `json:"-"`
 	Storage       Storage         `json:"-"`
 	Memory        *sync.RWMutex   `json:"-"`
 	Notifications []Notification  `json:"notifications"`
@@ -217,10 +220,42 @@ func (i *Instance) HandlePDF(filePath string) {
 		return
 	}
 	fileName := filepath.Base(filePath)
-	err = i.Storage.SavePDF(fileData, fileName)
+	url, err := i.Storage.SavePDF(fileData, fileName)
 	if err != nil {
 		i.Logger.Println("Error saving PDF file:", err)
 		return
 	}
 	i.Logger.Println("PDF file saved successfully.")
+	resp, err := http.Get(url)
+	if err != nil {
+		i.Logger.Println("Error getting PDF file:", err)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		i.Logger.Println("Error getting PDF file:", resp.Status)
+		return
+	}
+	pdfData, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		i.Logger.Println("Error reading response body:", err)
+		return
+	}
+
+	dialog.ShowFileSave(func(writer fyne.URIWriteCloser, err error) {
+		if err != nil || writer == nil {
+			return
+		}
+		defer writer.Close()
+		_, err = io.Copy(writer, bytes.NewReader(pdfData))
+		if err != nil {
+			i.Logger.Println("Error saving PDF file:", err)
+			return
+		}
+		i.Logger.Println("PDF file saved successfully.")
+	}, i.Window)
+	i.Logger.Println("PDF file downloaded successfully.")
+	i.MessageLabel.SetText("PDF file downloaded successfully.")
+	i.MessageLabel.Refresh()
+	i.MessageLabel.Show()
 }
