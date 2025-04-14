@@ -12,7 +12,7 @@ import (
 )
 
 type Storage interface {
-	SavePDF(file []byte, name string) (string, error)
+	SavePDF(file []byte, name string, uid string) (string, error)
 	SaveImage(file []byte, name string) (string, error)
 	SaveHTML(file []byte, name string) (string, error)
 	// GetPDF(name string) ([]byte, error)
@@ -56,7 +56,7 @@ type uploadStatus struct {
 	ID     string `json:"id"`
 }
 
-func (h *HttpStorage) saveFile(file []byte, name, fileType string) (string, error) {
+func (h *HttpStorage) saveFile(file []byte, name, uid string) (string, error) {
 	chunkSize := 1024 * 1024 // 1 MB
 	url := h.Endpoint + "/upload"
 	var lastChunk bool
@@ -74,6 +74,7 @@ func (h *HttpStorage) saveFile(file []byte, name, fileType string) (string, erro
 		req.Header.Set("Content-Type", "application/octet-stream")
 		req.Header.Set("Authorization", "AWS "+h.AccessKey+":"+h.SecretKey)
 		req.Header.Set("X-filename", name)
+		req.Header.Set("X-ID", uid)
 		if lastChunk {
 			req.Header.Set("X-Last-Chunk", "true")
 		}
@@ -107,8 +108,8 @@ func (h *HttpStorage) saveFile(file []byte, name, fileType string) (string, erro
 	return "", nil
 }
 
-func (h *HttpStorage) SavePDF(file []byte, name string) (string, error) {
-	return h.saveFile(file, name, "pdf")
+func (h *HttpStorage) SavePDF(file []byte, name string, uid string) (string, error) {
+	return h.saveFile(file, name, uid)
 }
 
 func (h *HttpStorage) SaveImage(file []byte, name string) (string, error) {

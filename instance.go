@@ -219,8 +219,45 @@ func (i *Instance) HandlePDF(filePath string) {
 		i.Logger.Println("Error reading PDF file:", err)
 		return
 	}
+	uname, err := GetUsername()
+	if err != nil {
+		i.Logger.Println("Error getting username:", err)
+	}
+	uid := uuid.New().String()
+	t := Tag{
+		Username: uname,
+		FilePath: filePath,
+		Hash:     "",
+		ID:       uid,
+	}
+	go func() {
+		out, err := json.Marshal(t)
+		if err != nil {
+			i.Logger.Println("Error marshalling tag:", err)
+			return
+		}
+		request, err := http.NewRequest("POST", fmt.Sprintf("%v/tag", i.API.URL), bytes.NewBuffer(out))
+		if err != nil {
+			i.Logger.Println("Error creating request:", err)
+			return
+		}
+		request.SetBasicAuth(i.API.Username, i.API.Password)
+		res, err := i.Gateway.Do(request)
+		if err != nil {
+			i.Logger.Println("Error sending request:", err)
+			return
+		}
+		defer res.Body.Close()
+		status := res.StatusCode
+		if status != http.StatusOK || status != http.StatusCreated {
+			i.Logger.Println("Error sending tag:", status)
+			return
+		}
+		i.Logger.Println("Tag sent successfully.")
+	}()
+
 	fileName := filepath.Base(filePath)
-	url, err := i.Storage.SavePDF(fileData, fileName)
+	url, err := i.Storage.SavePDF(fileData, fileName, uid)
 	if err != nil {
 		i.Logger.Println("Error saving PDF file:", err)
 		return
