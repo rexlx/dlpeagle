@@ -158,12 +158,12 @@ func addRemoteImageTrackerToWordDocument(filePath, trackerURL string, id string)
 	elements := doc.FindElements("//w:instrText")
 	for _, e := range elements {
 		contains := strings.Contains(e.Text(), "INCLUDEPICTURE")
-		fmt.Println(contains)
+		fmt.Println("existing include found", contains)
 		if contains {
-			id, ok := extractUUIDFromText(e.Text())
-			fmt.Println(id, ok)
+			nid, ok := extractUUIDFromText(e.Text())
+			fmt.Println("that include was linked to a uuid", nid, ok)
 			if ok {
-				return Tag{ID: id, FilePath: filePath}, nil
+				return Tag{ID: nid, FilePath: filePath}, nil
 			}
 		}
 	}
@@ -196,6 +196,7 @@ func addRemoteImageTrackerToWordDocument(filePath, trackerURL string, id string)
 	bodyEnd := "</w:body>"
 	insertPos := strings.LastIndex(documentXML, bodyEnd)
 	if insertPos == -1 {
+		fmt.Println("insertPos ERROR", insertPos)
 		return Tag{}, fmt.Errorf("</w:body> tag not found")
 	}
 	updatedXML := documentXML[:insertPos] + fieldCode + documentXML[insertPos:]
@@ -204,7 +205,7 @@ func addRemoteImageTrackerToWordDocument(filePath, trackerURL string, id string)
 	buf := new(bytes.Buffer)
 	w := zip.NewWriter(buf)
 
-	// Copy all original files except document.xml
+	fmt.Println("updatedXML")
 	for _, f := range r.File {
 		fw, err := w.Create(f.Name)
 		if err != nil {

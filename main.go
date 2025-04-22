@@ -75,7 +75,7 @@ func main() {
 	w.SetContent(container.NewBorder(toolbar, nil, nil, nil, stackedContent))
 
 	// w.Resize(fyne.NewSize(600, 400))
-	w.Resize(fyne.NewSize(800, 600))
+	w.Resize(fyne.NewSize(600, 400))
 
 	w.SetOnDropped(func(pos fyne.Position, uris []fyne.URI) {
 		if len(uris) == 0 {
