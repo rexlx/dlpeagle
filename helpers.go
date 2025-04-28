@@ -178,7 +178,7 @@ func addRemoteImageTrackerToWordDocument(filePath, trackerURL string, id string)
             <w:fldChar w:fldCharType="begin"/>
         </w:r>
         <w:r>
-            <w:instrText xml:space="preserve"> INCLUDEPICTURE \d "%s" \* MERGEFORMATINET </w:instrText>
+            <w:instrText xml:space="preserve">INCLUDEPICTURE "%s" \d</w:instrText>
         </w:r>
         <w:r>
             <w:fldChar w:fldCharType="separate"/>
