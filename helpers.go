@@ -17,6 +17,8 @@ import (
 	"strings"
 	"time"
 
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/dialog"
 	"github.com/beevik/etree"
 	"github.com/quic-go/quic-go"
 )
@@ -122,7 +124,7 @@ func addLineToWordDocument(filePath, newLine string) error {
 	return err
 }
 
-func addRemoteImageTrackerToWordDocument(filePath, trackerURL string, id string) (Tag, error) {
+func (i *Instance) addRemoteImageTrackerToWordDocument(filePath, trackerURL string, id string) (Tag, error) {
 	// Open the .docx file (ZIP archive)
 	r, err := zip.OpenReader(filePath)
 	if err != nil {
@@ -148,30 +150,34 @@ func addRemoteImageTrackerToWordDocument(filePath, trackerURL string, id string)
 	}
 
 	if documentXML == "" {
+		fmt.Println("document.xml not found")
 		return Tag{}, fmt.Errorf("document.xml not found")
 	}
 
 	doc := etree.NewDocument()
 	if err := doc.ReadFromString(documentXML); err != nil {
+		fmt.Println("Error parsing XML:", err)
 		return Tag{}, err
 	}
+	fmt.Println("Parsed XML successfully")
 	elements := doc.FindElements("//w:instrText")
 	for _, e := range elements {
 		contains := strings.Contains(e.Text(), "INCLUDEPICTURE")
-		fmt.Println("existing include found", contains)
 		if contains {
 			nid, ok := extractUUIDFromText(e.Text())
-			fmt.Println("that include was linked to a uuid", nid, ok)
 			if ok {
+				fmt.Println("Found UUID:", nid)
 				return Tag{ID: nid, FilePath: filePath}, nil
 			}
 		}
 	}
+
 	var t Tag
 	t.FilePath = filePath
 	t.ID = id
 	t.Created = int(time.Now().Unix())
-	// Construct the fiTd code with proper structure
+
+	// Construct the field code
 	fieldCode := fmt.Sprintf(`
     <w:p>
         <w:r>
@@ -184,35 +190,34 @@ func addRemoteImageTrackerToWordDocument(filePath, trackerURL string, id string)
             <w:fldChar w:fldCharType="separate"/>
         </w:r>
         <w:r>
-            <w:t> </w:t> <!-- Placeholder for the image; Word will fetch it -->
+            <w:t> </w:t>
         </w:r>
         <w:r>
             <w:fldChar w:fldCharType="end"/>
         </w:r>
     </w:p>`, trackerURL)
-	fmt.Println(fieldCode)
 
 	// Insert the field code before </w:body>
 	bodyEnd := "</w:body>"
 	insertPos := strings.LastIndex(documentXML, bodyEnd)
 	if insertPos == -1 {
-		fmt.Println("insertPos ERROR", insertPos)
+		fmt.Println("</w:body> tag not found")
 		return Tag{}, fmt.Errorf("</w:body> tag not found")
 	}
 	updatedXML := documentXML[:insertPos] + fieldCode + documentXML[insertPos:]
 
-	// Create new ZIP
+	// Create new ZIP in memory
 	buf := new(bytes.Buffer)
 	w := zip.NewWriter(buf)
-
-	fmt.Println("updatedXML")
 	for _, f := range r.File {
 		fw, err := w.Create(f.Name)
 		if err != nil {
+			fmt.Println("Error creating file in ZIP:", err)
 			return Tag{}, err
 		}
 		rc, err := f.Open()
 		if err != nil {
+			fmt.Println("Error opening file in ZIP:", err)
 			return Tag{}, err
 		}
 		if f.Name == "word/document.xml" {
@@ -221,25 +226,35 @@ func addRemoteImageTrackerToWordDocument(filePath, trackerURL string, id string)
 			_, err = io.Copy(fw, rc)
 		}
 		if err != nil {
+			fmt.Println("Error writing file to ZIP:", err)
 			return Tag{}, err
 		}
 		rc.Close()
 	}
 
-	// Finalize ZIP and overwrite original file
-	err = w.Close()
-	if err != nil {
+	// Finalize ZIP
+	if err := w.Close(); err != nil {
 		return Tag{}, err
 	}
-	outFile, err := os.Create(filePath)
-	if err != nil {
-		return Tag{}, err
-	}
-	defer outFile.Close()
-	_, err = io.Copy(outFile, buf)
-	if err != nil {
-		return Tag{}, err
-	}
+	fmt.Println("dialog should open?")
+	// Prompt user to save the file
+	dialog.ShowFileSave(func(writer fyne.URIWriteCloser, err error) {
+		if err != nil || writer == nil {
+			i.Logger.Println("File save dialog canceled or failed:", err)
+			return
+		}
+		defer writer.Close()
+		// Ensure buffer is reset to start
+		reader := bytes.NewReader(buf.Bytes())
+		n, err := io.Copy(writer, reader)
+		if err != nil {
+			i.Logger.Println("Failed to save file:", err)
+			return
+		}
+		i.Logger.Printf("File saved successfully to %s (%d bytes written)", writer.URI().String(), n)
+	}, i.Window)
+	fmt.Println("dialog should open?")
+
 	return t, nil
 }
 

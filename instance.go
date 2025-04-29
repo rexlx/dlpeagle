@@ -112,7 +112,7 @@ func (i *Instance) TagWordDocument(filePath string) {
 	id := uuid.New().String()
 	url := fmt.Sprintf("%v/%v", i.API.URL, id)
 	// add the hidden image to the word document
-	t, err := addRemoteImageTrackerToWordDocument(filePath, url, id)
+	t, err := i.addRemoteImageTrackerToWordDocument(filePath, url, id)
 	if err != nil {
 		i.Logger.Println("Error adding line to word document:", err)
 		return
